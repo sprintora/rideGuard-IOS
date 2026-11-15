@@ -14,11 +14,9 @@ class DefaultFirebaseOptions {
     storageBucket: 'rideguard-1.firebasestorage.app',
   );
 
-  // Copy API_KEY and GOOGLE_APP_ID from the iOS app's GoogleService-Info.plist
-  // (Firebase console > Project settings > Your apps > iOS).
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'REPLACE_WITH_IOS_API_KEY',
-    appId: 'REPLACE_WITH_IOS_GOOGLE_APP_ID',
+    apiKey: 'AIzaSyB6khfheR7MsElngYfC1Z5Kfg2PhCdCZwg',
+    appId: '1:626693756002:ios:b51c6d7d8a17feed16ad3b',
     messagingSenderId: '626693756002',
     projectId: 'rideguard-1',
     storageBucket: 'rideguard-1.firebasestorage.app',
