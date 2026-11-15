@@ -13,6 +13,13 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      # Firebase iOS SDK needs Swift tools 6.2 -> Xcode 26 or newer
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Show Xcode version
+        run: xcodebuild -version
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.9'
@@ -28,9 +35,9 @@ jobs:
           if [ ! -d ios ]; then
             flutter create --platforms=ios --org com.sprintora --project-name rideguard .
           fi
+      - run: flutter pub get
       - name: Prepare Info.plist and Podfile
         run: python3 tools/ios_prepare.py
-      - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
       - name: Build (no code signing)
