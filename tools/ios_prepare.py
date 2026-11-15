@@ -3,20 +3,66 @@
 * Info.plist: permission texts + background modes (location, Bluetooth)
 * Podfile: iOS 15 minimum (Firebase) + permission_handler feature flags
 
-If ios/Podfile does not exist yet (Flutter only generates it on a Mac during
-the first iOS build), it is generated first with:
-    flutter pub get
-    flutter build ios --config-only --no-codesign
+If ios/Podfile does not exist, it is created first:
+  1. try `flutter pub get` + `flutter build ios --config-only --no-codesign`
+  2. if Flutter still did not create it, write the standard Flutter Podfile
 """
 import plistlib, re, subprocess, sys, pathlib
 
 plist_path = pathlib.Path('ios/Runner/Info.plist')
 podfile = pathlib.Path('ios/Podfile')
+pbxproj = pathlib.Path('ios/Runner.xcodeproj/project.pbxproj')
+
+PODFILE_TEMPLATE = r'''# Uncomment this line to define a global platform for your project
+# platform :ios, '13.0'
+
+# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure \"flutter pub get\" is executed first"
+  end
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run \"flutter pub get\""
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+__RUNNER_TESTS__end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+  end
+end
+'''
+
+RUNNER_TESTS_BLOCK = '''  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+'''
 
 # ---------------------------------------------------------------- Podfile
-# Flutter generates the Podfile on the first iOS build, so create it if missing.
 if not podfile.exists():
-    print('ios/Podfile not found - generating it with Flutter...')
+    print('ios/Podfile not found - trying to generate it with Flutter...')
     try:
         subprocess.run(['flutter', 'pub', 'get'], check=True)
         subprocess.run(
@@ -24,10 +70,14 @@ if not podfile.exists():
             check=True,
         )
     except (FileNotFoundError, subprocess.CalledProcessError) as e:
-        sys.exit(f'Could not generate ios/Podfile automatically: {e}')
+        print(f'Flutter could not generate the Podfile: {e}')
 
 if not podfile.exists():
-    sys.exit('ios/Podfile still not found after running Flutter')
+    print('Flutter did not create ios/Podfile - writing the standard one')
+    has_tests = pbxproj.exists() and 'RunnerTests' in pbxproj.read_text(errors='ignore')
+    podfile.write_text(
+        PODFILE_TEMPLATE.replace('__RUNNER_TESTS__', RUNNER_TESTS_BLOCK if has_tests else '')
+    )
 
 # ------------------------------------------------------------- Info.plist
 with plist_path.open('rb') as f:
