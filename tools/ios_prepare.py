@@ -2,10 +2,34 @@
 
 * Info.plist: permission texts + background modes (location, Bluetooth)
 * Podfile: iOS 15 minimum (Firebase) + permission_handler feature flags
+
+If ios/Podfile does not exist yet (Flutter only generates it on a Mac during
+the first iOS build), it is generated first with:
+    flutter pub get
+    flutter build ios --config-only --no-codesign
 """
-import plistlib, re, sys, pathlib
+import plistlib, re, subprocess, sys, pathlib
 
 plist_path = pathlib.Path('ios/Runner/Info.plist')
+podfile = pathlib.Path('ios/Podfile')
+
+# ---------------------------------------------------------------- Podfile
+# Flutter generates the Podfile on the first iOS build, so create it if missing.
+if not podfile.exists():
+    print('ios/Podfile not found - generating it with Flutter...')
+    try:
+        subprocess.run(['flutter', 'pub', 'get'], check=True)
+        subprocess.run(
+            ['flutter', 'build', 'ios', '--config-only', '--no-codesign'],
+            check=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        sys.exit(f'Could not generate ios/Podfile automatically: {e}')
+
+if not podfile.exists():
+    sys.exit('ios/Podfile still not found after running Flutter')
+
+# ------------------------------------------------------------- Info.plist
 with plist_path.open('rb') as f:
     plist = plistlib.load(f)
 
@@ -23,7 +47,7 @@ plist['UIBackgroundModes'] = ['location', 'bluetooth-central']
 with plist_path.open('wb') as f:
     plistlib.dump(plist, f)
 
-podfile = pathlib.Path('ios/Podfile')
+# ----------------------------------------------------------------- Podfile
 text = podfile.read_text()
 
 # minimum iOS version (Firebase iOS SDK 12 needs 15.0)
