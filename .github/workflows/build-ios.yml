@@ -1,0 +1,49 @@
+name: Build RideGuard iOS (driver, unsigned IPA)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          cache: true
+      - name: Check iOS Firebase values were filled in
+        run: |
+          if grep -q "REPLACE_WITH_IOS" lib/firebase_options.dart; then
+            echo "Fill in the iOS apiKey and appId in lib/firebase_options.dart first." >&2
+            exit 1
+          fi
+      - name: Create ios/ folder if the repo does not have one
+        run: |
+          if [ ! -d ios ]; then
+            flutter create --platforms=ios --org com.sprintora --project-name rideguard .
+          fi
+      - name: Prepare Info.plist and Podfile
+        run: python3 tools/ios_prepare.py
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - name: Build (no code signing)
+        run: flutter build ios --release --no-codesign --build-number="${{ github.run_number }}"
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          rm -rf Payload && mkdir Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry rideguard-driver-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rideguard-ios-driver-${{ github.run_number }}
+          retention-days: 30
+          path: rideguard-driver-unsigned.ipa
+          if-no-files-found: error
